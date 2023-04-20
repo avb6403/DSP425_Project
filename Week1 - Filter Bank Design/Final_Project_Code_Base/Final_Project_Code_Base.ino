@@ -13,7 +13,7 @@
 
 
 const int TSAMP_MSEC = 100;
-const int NUM_SAMPLES = 512;  // 3600;
+const int NUM_SAMPLES = 3600;  //512 or 3600;
 const int NUM_SUBSAMPLES = 160;
 const int DAC0 = 3, DAC1 = 4, DAC2 = 5, LM61 = A0, VDITH = A1;
 const int V_REF = 5.0;
@@ -65,10 +65,8 @@ void setup()
 ////**********************************************************************
 void loop()
 {
-
   syncSample();  // Wait for the interupt when actually reading ADC data
 
-  
   // Breathing Rate Detection
 
   // Declare variables
@@ -78,7 +76,6 @@ void loop()
   long eqOutput;  //  Equalizer output
   int alarmCode;  //  Alarm code
 
-
   // ******************************************************************
   //  When finding the impulse responses of the filters use this as an input
   //  Create a Delta function in time with the first sample a 1 and all others 0
@@ -86,9 +83,7 @@ void loop()
 
   // ******************************************************************
   //  Use this when the test vector generator is used as an input
-  //  xv = testVector();
-
-
+    xv = testVector();
   // ******************************************************************
   //  Read input value in ADC counts  -- Get simulated data from MATLAB
   //readValue = ReadFromMATLAB();
@@ -105,8 +100,6 @@ void loop()
 
   //fxdInputValue = long(DATA_FXPT * readValue + 0.5);
 
-  
-
   //  Execute the equalizer
   //  eqOutput = EqualizerFIR( fxdInputValue, loopTick );
   
@@ -116,18 +109,15 @@ void loop()
   //  Convert the output of the equalizer by scaling floating point
   //xv = float(eqOutput) * INV_FXPT;
 
-
   //*******************************************************************
   // Uncomment this when measuring execution times
   //startUsec = micros();
 
   // ******************************************************************
   //  Compute the output of the filter using the cascaded SOS sections
-   yLF = IIR_LOW(xv); // second order systems cascade (LPF) 
-
-
-
-
+  yLF = IIR_LOW(xv); // second order systems cascade (LPF) 
+  yMF = IIR_MID(xv); // second order systems cascade (BPF)
+  yHF = IIR_HIGH(xv); // second order systems cascade (HPF)
   //  Compute the latest output of the running stats for the output of the filters.
   //  Pass the entire set of output values, the latest stats structure and the reset flag
 
@@ -135,7 +125,6 @@ void loop()
   //  statsReset = (statsLF.tick%100 == 0);
   //  getStats( yv, statsLF, statsReset);
   //  stdLF = statsLF.stdev;
-
 
   //*******************************************************************
   // Uncomment this when measuring execution times
@@ -159,18 +148,17 @@ void loop()
  
    printArray[0] = loopTick;  //  The sample number -- always print this
    printArray[1] = xv;        //  Column 2, INPUT SEQUENCE
-   
    printArray[2] = yLF;       //  Column 3, LPF OUTPUT SEQUENCE
-//   printArray[3] = yMF;       //  Column 4, etc...
-//   printArray[4] = yHF;
+   printArray[3] = yMF;       //  Column 4, BPF OUTPUT SEQUENCE
+   printArray[4] = yHF;       //  Column 5, HPF OUTPUT SEQUENCE
 //   printArray[5] = stdLF;
 //   printArray[6] = stdMF;
 //   printArray[7] = stdHF;
 //   printArray[8] = float(alarmCode);
 
-   numValues = 3;  // The number of columns to be sent to the serial monitor (or MATLAB)
+   numValues = 5;  // The number of columns to be sent to the serial monitor (or MATLAB)
 
- WriteToSerial( numValues, printArray );  //  Write to the serial monitor (or MATLAB)
+ WriteToSerial( numValues, printArray);  //  Write to the serial monitor (or MATLAB)
 
   if (++loopTick >= NUM_SAMPLES){
     //Serial.print("Average execution time (uSec) = ");Serial.println( float(execUsec)/NUM_SAMPLES );
@@ -190,9 +178,6 @@ int AlarmCheck( float stdLF, float stdMF, float stdHF)
 //return alarmCode;
 
 }  // end AlarmCheck
- 
-
-
 //*******************************************************************
 int FIR_Generic(long inputX, int sampleNumber)
 {   
@@ -201,8 +186,6 @@ int FIR_Generic(long inputX, int sampleNumber)
   // impulse response in h
 
   // Filter type: FIR
-  
-  //
   //  Set the constant HFXPT to the sum of the values of the impulse response
   //  This is to keep the gain of the impulse response at 1.
   //
@@ -210,8 +193,6 @@ int FIR_Generic(long inputX, int sampleNumber)
   
   int h[] = {};
 
-
- 
   int i;
   const float INV_HFXPT = 1.0/HFXPT;
   static long xN[MFILT] = {inputX}; 
@@ -255,8 +236,6 @@ int FIR_Generic(long inputX, int sampleNumber)
 //*******************************************************************************
 float IIR_LOW(float xv)
 {  
-
-
   //  ***  Copy variable declarations from MATLAB generator to here  ****
 
 //Filter specific variable declarations
@@ -275,25 +254,18 @@ static float a[numStages][3];
   float yv = 0.0;
   unsigned long startTime;
 
-
-
 //  ***  Copy variable initialization code from MATLAB generator to here  ****
-
 //CHEBY low, order 5, R = 0.5, 12 BPM
-
 G[0] = 0.0054630;
-b[0][0] = 1.0000000; b[0][1] = 0.9990472; b[0][2]= 0.0000000;
+b[0][0] = 1.0000000; b[0][1] = 0.9990372; b[0][2]= 0.0000000;
 a[0][0] = 1.0000000; a[0][1] =  -0.9554256; a[0][2] =  0.0000000;
 G[1] = 0.0054630;
-b[1][0] = 1.0000000; b[1][1] = 2.0015407; b[1][2]= 1.0015416;
+b[1][0] = 1.0000000; b[1][1] = 2.0015569; b[1][2]= 1.0015579;
 a[1][0] = 1.0000000; a[1][1] =  -1.9217194; a[1][2] =  0.9289864;
 G[2] = 0.0054630;
-b[2][0] = 1.0000000; b[2][1] = 1.9994122; b[2][2]= 0.9994131;
+b[2][0] = 1.0000000; b[2][1] = 1.9994059; b[2][2]= 0.9994068;
 a[2][0] = 1.0000000; a[2][1] =  -1.9562202; a[2][2] =  0.9723269;
-
 //  **** Stop copying MATLAB code here  ****
-
-
 
   //  Iterate over each second order stage.  For each stage shift the input data
   //  buffer ( x[kk] ) by one and the output data buffer by one ( y[k] ).  Then bring in 
@@ -322,6 +294,138 @@ a[2][0] = 1.0000000; a[2][1] =  -1.9562202; a[2][2] =  0.9723269;
   return yv;
 }
 
+float IIR_MID(float xv)
+{  
+  //  ***  Copy variable declarations from MATLAB generator to here  ****
+
+//Filter specific variable declarations
+const int numStages = 6;
+static float G[numStages];
+static float b[numStages][3];
+static float a[numStages][3];
+
+//  *** Stop copying MATLAB variable declarations here
+  
+  int stage;
+  int i;
+  static float xM0[numStages] = {0.0}, xM1[numStages] = {0.0}, xM2[numStages] = {0.0};
+  static float yM0[numStages] = {0.0}, yM1[numStages] = {0.0}, yM2[numStages] = {0.0};
+  
+  float yv = 0.0;
+  unsigned long startTime;
+
+//  ***  Copy variable initialization code from MATLAB generator to here  ****
+//CHEBY bandpass, order 6, R= 1.0, [12 40] BPM
+
+G[0] = 0.0901845;
+b[0][0] = 1.0000000; b[0][1] = 2.0000078; b[0][2]= 1.0000019;
+a[0][0] = 1.0000000; a[0][1] =  -1.8518182; a[0][2] =  0.9232096;
+G[1] = 0.0901845;
+b[1][0] = 1.0000000; b[1][1] = -2.0000071; b[1][2]= 1.0000013;
+a[1][0] = 1.0000000; a[1][1] =  -1.8074575; a[1][2] =  0.9321473;
+G[2] = 0.0901845;
+b[2][0] = 1.0000000; b[2][1] = 2.0024227; b[2][2]= 1.0024286;
+a[2][0] = 1.0000000; a[2][1] =  -1.9081449; a[2][2] =  0.9445785;
+G[3] = 0.0901845;
+b[3][0] = 1.0000000; b[3][1] = 1.9975695; b[3][2]= 0.9975754;
+a[3][0] = 1.0000000; a[3][1] =  -1.9504289; a[3][2] =  0.9714626;
+G[4] = 0.0901845;
+b[4][0] = 1.0000000; b[4][1] = -2.0024054; b[4][2]= 1.0024112;
+a[4][0] = 1.0000000; a[4][1] =  -1.8034239; a[4][2] =  0.9729274;
+G[5] = 0.0901845;
+b[5][0] = 1.0000000; b[5][1] = -1.9975875; b[5][2]= 0.9975933;
+a[5][0] = 1.0000000; a[5][1] =  -1.9757181; a[5][2] =  0.9915253;
+//  **** Stop copying MATLAB code here  ****
+
+  //  Iterate over each second order stage.  For each stage shift the input data
+  //  buffer ( x[kk] ) by one and the output data buffer by one ( y[k] ).  Then bring in 
+  //  a new sample xv into the buffer;
+  //
+  //  Then execute the recusive filter on the buffer
+  //
+  //  y[k] = -a[2]*y[k-2] + -a[1]*y[k-1] + g*b[0]*x[k] + b[1]*x[k-1] + b[2]*x[k-2] 
+  //
+  //  Pass the output from this stage to the next stage by setting the input
+  //  variable to the next stage x to the output of the current stage y
+  //  
+  //  Repeat this for each second order stage of the filter
+
+  
+  for (i =0; i<numStages; i++)
+    {
+      yM2[i] = yM1[i]; yM1[i] = yM0[i];  xM2[i] = xM1[i]; xM1[i] = xM0[i], xM0[i] = G[i]*xv;
+      yv = -a[i][2]*yM2[i] - a[i][1]*yM1[i] + b[i][2]*xM2[i] + b[i][1]*xM1[i] + b[i][0]*xM0[i];
+      yM0[i] = yv;
+      xv = yv;
+    }
+//
+//  execUsec += micros()-startTime;
+  
+  return yv;
+}
+
+float IIR_HIGH(float xv)
+{  
+  //  ***  Copy variable declarations from MATLAB generator to here  ****
+//Filter specific variable declarations
+const int numStages = 4;
+static float G[numStages];
+static float b[numStages][3];
+static float a[numStages][3];
+
+//  *** Stop copying MATLAB variable declarations here
+  
+  int stage;
+  int i;
+  static float xM0[numStages] = {0.0}, xM1[numStages] = {0.0}, xM2[numStages] = {0.0};
+  static float yM0[numStages] = {0.0}, yM1[numStages] = {0.0}, yM2[numStages] = {0.0};
+  
+  float yv = 0.0;
+  unsigned long startTime;
+
+//  ***  Copy variable initialization code from MATLAB generator to here  ****
+//CHEBY high, order 8, R = 0.5, 40 BPM
+G[0] = 0.6899088;
+b[0][0] = 1.0000000; b[0][1] = -2.0004653; b[0][2]= 1.0001304;
+a[0][0] = 1.0000000; a[0][1] =  -0.3786331; a[0][2] =  0.1766708;
+G[1] = 0.6899088;
+b[1][0] = 1.0000000; b[1][1] = -2.0258801; b[1][2]= 1.0262211;
+a[1][0] = 1.0000000; a[1][1] =  -1.2983826; a[1][2] =  0.6726531;
+G[2] = 0.6899088;
+b[2][0] = 1.0000000; b[2][1] = -1.9741196; b[2][2]= 0.9744486;
+a[2][0] = 1.0000000; a[2][1] =  -1.6588484; a[2][2] =  0.8741666;
+G[3] = 0.6899088;
+b[3][0] = 1.0000000; b[3][1] = -1.9995350; b[3][2]= 0.9998699;
+a[3][0] = 1.0000000; a[3][1] =  -1.7975113; a[3][2] =  0.9655216;
+
+//  **** Stop copying MATLAB code here  ****
+
+  //  Iterate over each second order stage.  For each stage shift the input data
+  //  buffer ( x[kk] ) by one and the output data buffer by one ( y[k] ).  Then bring in 
+  //  a new sample xv into the buffer;
+  //
+  //  Then execute the recusive filter on the buffer
+  //
+  //  y[k] = -a[2]*y[k-2] + -a[1]*y[k-1] + g*b[0]*x[k] + b[1]*x[k-1] + b[2]*x[k-2] 
+  //
+  //  Pass the output from this stage to the next stage by setting the input
+  //  variable to the next stage x to the output of the current stage y
+  //  
+  //  Repeat this for each second order stage of the filter
+
+  
+  for (i =0; i<numStages; i++)
+    {
+      yM2[i] = yM1[i]; yM1[i] = yM0[i];  xM2[i] = xM1[i]; xM1[i] = xM0[i], xM0[i] = G[i]*xv;
+      yv = -a[i][2]*yM2[i] - a[i][1]*yM1[i] + b[i][2]*xM2[i] + b[i][1]*xM1[i] + b[i][0]*xM0[i];
+      yM0[i] = yv;
+      xv = yv;
+    }
+//
+//  execUsec += micros()-startTime;
+  
+  return yv;
+}
 //*******************************************************************
 void getStats(float xv, stats_t &s, bool reset)
 {
