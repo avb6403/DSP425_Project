@@ -111,7 +111,7 @@ void loop()
 
   //*******************************************************************
   // Uncomment this when measuring execution times
-  //startUsec = micros();
+  startUsec = micros();
 
   // ******************************************************************
   //  Compute the output of the filter using the cascaded SOS sections
@@ -122,14 +122,21 @@ void loop()
   //  Pass the entire set of output values, the latest stats structure and the reset flag
 
   
-  //  statsReset = (statsLF.tick%100 == 0);
-  //  getStats( yv, statsLF, statsReset);
-  //  stdLF = statsLF.stdev;
+  statsReset = (statsLF.tick%100 == 0);
+
+  getStats( yLF, statsLF, statsReset);
+  stdLF = statsLF.stdev;
+
+  getStats( yMF, statsMF, statsReset);
+  stdMF = statsMF.stdev;
+
+  getStats( yHF, statsHF, statsReset);
+  stdHF = statsHF.stdev;
 
   //*******************************************************************
   // Uncomment this when measuring execution times
-  // endUsec = micros();
-  // execUsec = execUsec + (endUsec-startUsec);
+   endUsec = micros();
+   execUsec = execUsec + (endUsec-startUsec);
 
   //  Call the alarm check function to determine what breathing range 
   //  alarmCode = AlarmCheck( stdLF, stdMF, stdHF );
@@ -147,21 +154,22 @@ void loop()
  //  numValues -- An integer indicating the number of values in the array.  
  
    printArray[0] = loopTick;  //  The sample number -- always print this
-   printArray[1] = xv;        //  Column 2, INPUT SEQUENCE
-   printArray[2] = yLF;       //  Column 3, LPF OUTPUT SEQUENCE
-   printArray[3] = yMF;       //  Column 4, BPF OUTPUT SEQUENCE
-   printArray[4] = yHF;       //  Column 5, HPF OUTPUT SEQUENCE
-//   printArray[5] = stdLF;
-//   printArray[6] = stdMF;
-//   printArray[7] = stdHF;
-//   printArray[8] = float(alarmCode);
+   //printArray[1] = xv;        //  Column 2, INPUT SEQUENCE
+   //printArray[2] = yLF;       //  Column 3, LPF OUTPUT SEQUENCE
+   //printArray[3] = yMF;       //  Column 4, BPF OUTPUT SEQUENCE
+   //printArray[4] = yHF;       //  Column 5, HPF OUTPUT SEQUENCE
+   //printArray[5] = stdLF;
+   //printArray[6] = stdMF;
+   //printArray[7] = stdHF;
+   printArray[1] = float(alarmCode);
 
-   numValues = 5;  // The number of columns to be sent to the serial monitor (or MATLAB)
+   numValues = 2;  // The number of columns to be sent to the serial monitor (or MATLAB)
 
  WriteToSerial( numValues, printArray);  //  Write to the serial monitor (or MATLAB)
 
   if (++loopTick >= NUM_SAMPLES){
-    //Serial.print("Average execution time (uSec) = ");Serial.println( float(execUsec)/NUM_SAMPLES );
+    Serial.print("Average execution time (uSec) = ");
+    Serial.println( float(execUsec)/NUM_SAMPLES );
     while(true); // spin forever
   }
 
@@ -486,7 +494,9 @@ float testVector(void)
   const int NUM_BAND = 6;
   const float CAL_FBPM = 10.0, CAL_AMP = 2.0; 
   
-  const float FBPM[NUM_BAND] = {5.0, 10.0, 15.0, 20.0, 30.0, 70.0}; // LPF test
+  const float FBPM[NUM_BAND] = {5.0, 10.0, 20.0, 30.0, 50.0, 60.0}; // LPF test - 5.0, 10.0, 15.0, 20.0, 30.0, 70.0
+  // For the general filter test use those frequencies: 5, 10, 20, 30, 50, 60
+
   static float bandAmp[NUM_BAND] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
 
   //  Determine the number of samples (around 600 ) that will give you an even number
