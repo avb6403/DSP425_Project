@@ -27,7 +27,7 @@ const float INV_FXPT = 1.0 / DATA_FXPT; // division slow: precalculate
 
 int nSmpl = 1, sample;
 
-float xv, yv, yLF, yMF, yHF, stdLF, stdMF, stdHF;
+float xv, yv, yLF, yMF, yHF, stdLF, stdMF, stdHF, yLPF_FIR;
 float printArray[9];
 int numValues = 0;
 
@@ -115,13 +115,16 @@ void loop()
 
   // ******************************************************************
   //  Compute the output of the filter using the cascaded SOS sections
-  yLF = IIR_LOW(xv); // second order systems cascade (LPF) 
-  yMF = IIR_MID(xv); // second order systems cascade (BPF)
+  yLF = IIR_LOW(xv);  // second order systems cascade (LPF) 
+  yMF = IIR_MID(xv);  // second order systems cascade (BPF)
   yHF = IIR_HIGH(xv); // second order systems cascade (HPF)
+
+  yLPF_FIR = FIR_Low_Generic(long(DATA_FXPT * xv + 0.5), NUM_SAMPLES);
   //  Compute the latest output of the running stats for the output of the filters.
   //  Pass the entire set of output values, the latest stats structure and the reset flag
 
-  
+  /*Statistics*/
+  /*
   statsReset = (statsLF.tick%100 == 0);
 
   getStats( yLF, statsLF, statsReset);
@@ -132,11 +135,11 @@ void loop()
 
   getStats( yHF, statsHF, statsReset);
   stdHF = statsHF.stdev;
-
+  */
   //*******************************************************************
   // Uncomment this when measuring execution times
-   endUsec = micros();
-   execUsec = execUsec + (endUsec-startUsec);
+   //endUsec = micros();
+   //execUsec = execUsec + (endUsec-startUsec);
 
   //  Call the alarm check function to determine what breathing range 
   //  alarmCode = AlarmCheck( stdLF, stdMF, stdHF );
@@ -154,16 +157,17 @@ void loop()
  //  numValues -- An integer indicating the number of values in the array.  
  
    printArray[0] = loopTick;  //  The sample number -- always print this
-   //printArray[1] = xv;        //  Column 2, INPUT SEQUENCE
+   printArray[1] = xv;        //  Column 2, INPUT SEQUENCE
    //printArray[2] = yLF;       //  Column 3, LPF OUTPUT SEQUENCE
    //printArray[3] = yMF;       //  Column 4, BPF OUTPUT SEQUENCE
    //printArray[4] = yHF;       //  Column 5, HPF OUTPUT SEQUENCE
    //printArray[5] = stdLF;
    //printArray[6] = stdMF;
    //printArray[7] = stdHF;
-   printArray[1] = float(alarmCode);
+   //printArray[8] = float(alarmCode);
+   printArray[2] = yLPF_FIR;    // Column 3, LPF FIR OUTPUT
 
-   numValues = 2;  // The number of columns to be sent to the serial monitor (or MATLAB)
+   numValues = 3;  // The number of columns to be sent to the serial monitor (or MATLAB)
 
  WriteToSerial( numValues, printArray);  //  Write to the serial monitor (or MATLAB)
 
@@ -240,7 +244,115 @@ int FIR_Generic(long inputX, int sampleNumber)
   }
 }
 
+int FIR_Low_Generic(long inputX, int sampleNumber)
+{   
+  // Starting with a generic FIR filter impelementation customize only by
+  // changing the length of the filter using MFILT and the values of the
+  // impulse response in h
 
+  // Filter type: FIR
+  //  Set the constant HFXPT to the sum of the values of the impulse response
+  //  This is to keep the gain of the impulse response at 1.
+  
+  // LPF FIR Filter Coefficients MFILT = 51, Fc = 75
+	const int HFXPT = 2048, MFILT = 51;
+	int h[] = {1, 0, -2, -3, -3, 0, 5, 9, 8, 0, -12, -21, -18, 0,
+	26, 45, 38, 0, -55, -95, -84, 0, 149, 321, 460, 512, 460, 321,
+	149, 0, -84, -95, -55, 0, 38, 45, 26, 0, -18, -21, -12, 0,
+	8, 9, 5, 0, -3, -3, -2, 0, 1};
+
+
+  int i;
+  const float INV_HFXPT = 1.0/HFXPT;
+  static long xN[MFILT] = {inputX}; 
+  long yOutput = 0;
+
+  //
+  // Right shift old xN values. Assign new inputX to xN[0];
+  //
+  for ( i = (MFILT-1); i > 0; i-- )
+  {
+    xN[i] = xN[i-1];
+  }
+   xN[0] = inputX;
+  
+  //
+  // Convolve the input sequence with the impulse response
+  //
+  
+  for ( i = 0; i < MFILT; i++)
+  {
+    
+    // Explicitly cast the impulse value and the input value to LONGs then multiply
+    // by the input value.  Sum up the output values
+    
+    yOutput = yOutput + long(h[i]) * long( xN[i] );
+  }
+
+  //  Return the output, but scale by 1/HFXPT to keep the gain to 1
+  //  Then cast back to an integer
+  //
+
+  // Skip the first MFILT  samples to avoid the transient at the beginning due to end effects
+  if (sampleNumber < MFILT ){
+    return long(0);
+  }else{
+    return long(float(yOutput) * INV_HFXPT);
+  }
+}
+
+int Equalizer_FIR(long inputX, int sampleNumber)
+{   
+  // Starting with a generic FIR filter impelementation customize only by
+  // changing the length of the filter using MFILT and the values of the
+  // impulse response in h
+
+  // Filter type: FIR
+  //  Set the constant HFXPT to the sum of the values of the impulse response
+  //  This is to keep the gain of the impulse response at 1.
+  //
+  const int HFXPT = 1, MFILT = 4;
+  
+  int h[] = {1, 1, -1, -1};
+
+  int i;
+  const float INV_HFXPT = 1.0/HFXPT;
+  static long xN[MFILT] = {inputX}; 
+  long yOutput = 0;
+
+  //
+  // Right shift old xN values. Assign new inputX to xN[0];
+  //
+  for ( i = (MFILT-1); i > 0; i-- )
+  {
+    xN[i] = xN[i-1];
+  }
+   xN[0] = inputX;
+  
+  //
+  // Convolve the input sequence with the impulse response
+  //
+  
+  for ( i = 0; i < MFILT; i++)
+  {
+    
+    // Explicitly cast the impulse value and the input value to LONGs then multiply
+    // by the input value.  Sum up the output values
+    
+    yOutput = yOutput + long(h[i]) * long( xN[i] );
+  }
+
+  //  Return the output, but scale by 1/HFXPT to keep the gain to 1
+  //  Then cast back to an integer
+  //
+
+  // Skip the first MFILT  samples to avoid the transient at the beginning due to end effects
+  if (sampleNumber < MFILT ){
+    return long(0);
+  }else{
+    return long(float(yOutput) * INV_HFXPT);
+  }
+}
 //*******************************************************************************
 float IIR_LOW(float xv)
 {  
