@@ -13,7 +13,7 @@
 
 
 const int TSAMP_MSEC = 100;
-const int NUM_SAMPLES = 3600;  //512 or 3600;
+const int NUM_SAMPLES = 512;  //512 or 3600;
 const int NUM_SUBSAMPLES = 160;
 const int DAC0 = 3, DAC1 = 4, DAC2 = 5, LM61 = A0, VDITH = A1;
 const int V_REF = 5.0;
@@ -37,6 +37,8 @@ bool statsReset;
 bool isToneEn = false;
 
 unsigned long startUsec, endUsec, execUsec;
+
+float threshold = 0.0;
 
 //  Define a structure to hold statistics values for each filter band
 struct stats_t
@@ -83,7 +85,7 @@ void loop()
 
   // ******************************************************************
   //  Use this when the test vector generator is used as an input
-    xv = testVector();
+  //  xv = testVector();
   // ******************************************************************
   //  Read input value in ADC counts  -- Get simulated data from MATLAB
   //readValue = ReadFromMATLAB();
@@ -182,14 +184,34 @@ void loop()
 //******************************************************************
 int AlarmCheck( float stdLF, float stdMF, float stdHF)
 {
+  if(stdLF < threshold || stdMF < threshold || stdHF < threshold)
+  {
+    alarmCode = -1; // Non-operational
+  }
 
+  if(stdLF >= stdMF && stdLF >= stdHF)
+  {
+    alarmCode = 1; // Low section
+  }
 
-//  Your alarm check logic code will go here.
+  if(stdMF >= stdLF && stdMF >= stdHF)
+  {
+    alarCode = 2; // Mid section
+  }
 
-  
-//return alarmCode;
+  if(stdHF >= stdLF && stdHF >= stdMF)
+  {
+    alarCode = 3; // High section
+  }
 
+  else {
+  {
+    alarCode = 0; // Indeterminant state
+  } 
+
+  return alarmCode;
 }  // end AlarmCheck
+
 //*******************************************************************
 int FIR_Generic(long inputX, int sampleNumber)
 {   
@@ -588,10 +610,7 @@ int index;
 
 //*********************************************************************
 void setAlarm(int aCode, boolean isToneEn)
-{
-
-// Your alarm code goes here
-
+{  
     
 } // setBreathRateAlarm()
 
@@ -606,10 +625,13 @@ float testVector(void)
   const int NUM_BAND = 6;
   const float CAL_FBPM = 10.0, CAL_AMP = 2.0; 
   
-  const float FBPM[NUM_BAND] = {5.0, 10.0, 20.0, 30.0, 50.0, 60.0}; // LPF test - 5.0, 10.0, 15.0, 20.0, 30.0, 70.0
+  const float FBPM[NUM_BAND] = {70.0, 75.0, 80.0, 85.0, 90.0, 100.0}; 
+  // LPF test - 5.0, 10.0, 15.0, 20.0, 30.0, 70.0
   // For the general filter test use those frequencies: 5, 10, 20, 30, 50, 60
+  // FIR LPF test - 70.0, 75.0, 80.0, 85.0, 90.0, 100.0
 
-  static float bandAmp[NUM_BAND] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+  static float bandAmp[NUM_BAND] = {1000.0, 1000.0, 1000.0, 1000.0, 1000.0, 1000.0};
+  // 1.0, 1.0, 1.0, 1.0, 1.0, 1.0
 
   //  Determine the number of samples (around 600 ) that will give you an even number
   //  of full cycles of the sinewave.  This is done to avoid a large discontinuity 
