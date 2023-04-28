@@ -82,6 +82,7 @@ void loop()
   float readValue, floatOutput;  //  Input data from ADC after dither averaging or from MATLAB
   long fxdInputValue, lpfInput, lpfOutput;  
   long eqOutput;  //  Equalizer output
+  long eqOutput1;  //  Equalizer output
   int alarmCode;  //  Alarm code
 
   // ******************************************************************
@@ -91,9 +92,9 @@ void loop()
 
   // ******************************************************************
   //  Use this when the test vector generator is used as an input
-  xv = testVector();
+  //xv = testVector();
 
-  long fxdInputVal = long(DATA_FXPT * xv + 0.5);
+  //long fxdInputVal = long(DATA_FXPT * xv + 0.5);
   // ******************************************************************
   //  Read input value in ADC counts  -- Get simulated data from MATLAB
   //readValue = ReadFromMATLAB();
@@ -108,13 +109,13 @@ void loop()
   //  (use DATA_FXPT).  Then round the value and truncate to a fixed point
   //  INT datatype
 
-  //fxdInputValue = long(DATA_FXPT * readValue + 0.5);
+  fxdInputValue = long(DATA_FXPT * readValue + 0.5);
 
   //  Execute the equalizer
-    eqOutput = Equalizer_FIR(fxdInputVal, loopTick);
+    eqOutput1 = Equalizer_FIR(fxdInputValue, loopTick);
   
   //  Execute the noise filter.  
-    //eqOutput = FIR_LPF_Noise(fxdInputVal, loopTick);
+    eqOutput = FIR_LPF_Noise(eqOutput1, loopTick);
 
   //  Convert the output of the equalizer by scaling floating point
     yv = float(eqOutput) * INV_FXPT;
@@ -125,16 +126,16 @@ void loop()
 
   // ******************************************************************
   //  Compute the output of the filter using the cascaded SOS sections
-  //yLF = IIR_LOW(xv);  // second order systems cascade (LPF) 
-  //yMF = IIR_MID(xv);  // second order systems cascade (BPF)
-  //yHF = IIR_HIGH(xv); // second order systems cascade (HPF)
+  yLF = IIR_LOW(yv);  // second order systems cascade (LPF) 
+  yMF = IIR_MID(yv);  // second order systems cascade (BPF)
+  yHF = IIR_HIGH(yv); // second order systems cascade (HPF)
 
   //yLPF_FIR = FIR_LPF_Noise(fxdInputVal, loopTick);
   //  Compute the latest output of the running stats for the output of the filters.
   //  Pass the entire set of output values, the latest stats structure and the reset flag
 
   /*Statistics*/
-  /*
+  
   statsReset = (statsLF.tick%100 == 0);
 
   getStats( yLF, statsLF, statsReset);
@@ -145,17 +146,17 @@ void loop()
 
   getStats( yHF, statsHF, statsReset);
   stdHF = statsHF.stdev;
-  */
+  
   //*******************************************************************
   // Uncomment this when measuring execution times
    //endUsec = micros();
    //execUsec = execUsec + (endUsec-startUsec);
 
   //  Call the alarm check function to determine what breathing range 
-  //  alarmCode = AlarmCheck( stdLF, stdMF, stdHF );
+    alarmCode = AlarmCheck( stdLF, stdMF, stdHF );
 
   //  Call the alarm function to turn on or off the tone
-  //setAlarm(alarmCode, isToneEn );
+  setAlarm(alarmCode, isToneEn );
 
   
  // To print data to the serial port, use the WriteToSerial function.  
@@ -168,16 +169,16 @@ void loop()
  
    printArray[0] = loopTick;  //  The sample number -- always print this
    printArray[1] = xv;        //  Column 2, INPUT SEQUENCE
-   //printArray[2] = yLF;       //  Column 3, LPF OUTPUT SEQUENCE
-   //printArray[3] = yMF;       //  Column 4, BPF OUTPUT SEQUENCE
-   //printArray[4] = yHF;       //  Column 5, HPF OUTPUT SEQUENCE
-   //printArray[5] = stdLF;
-   //printArray[6] = stdMF;
-   //printArray[7] = stdHF;
-   //printArray[8] = float(alarmCode);
-   printArray[2] = yv;    // Column 3, LPF FIR OUTPUT
+   printArray[2] = yLF;       //  Column 3, LPF OUTPUT SEQUENCE
+   printArray[3] = yMF;       //  Column 4, BPF OUTPUT SEQUENCE
+   printArray[4] = yHF;       //  Column 5, HPF OUTPUT SEQUENCE
+   printArray[5] = stdLF;
+   printArray[6] = stdMF;
+   printArray[7] = stdHF;
+   printArray[8] = float(alarmCode);
+ 
 
-   numValues = 3;  // The number of columns to be sent to the serial monitor (or MATLAB)
+   numValues = 8;  // The number of columns to be sent to the serial monitor (or MATLAB)
 
  WriteToSerial( numValues, printArray);  //  Write to the serial monitor (or MATLAB)
 
