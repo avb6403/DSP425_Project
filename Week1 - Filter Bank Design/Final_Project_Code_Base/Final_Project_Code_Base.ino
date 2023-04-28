@@ -13,7 +13,7 @@
 
 
 const int TSAMP_MSEC = 100;
-const int NUM_SAMPLES = 512;  //512 or 3600;
+const int NUM_SAMPLES = 5400;  //512 or 3600;
 const int NUM_SUBSAMPLES = 160;
 const int DAC0 = 3, DAC1 = 4, DAC2 = 5, LM61 = A0, VDITH = A1;
 const int V_REF = 5.0;
@@ -38,6 +38,7 @@ bool isToneEn = false;
 
 unsigned long startUsec, endUsec, execUsec;
 
+int alarmCode = 0;
 float threshold = 0.0;
 
 //  Define a structure to hold statistics values for each filter band
@@ -54,7 +55,7 @@ void setup()
   configureArduino();
   Serial.begin(115200);delay(5);
 
-   //Handshake with MATLAB 
+  //Handshake with MATLAB 
   Serial.println(F("%Arduino Ready"));
   while (Serial.read() != 'g'); // spin
 
@@ -62,8 +63,6 @@ void setup()
   MsTimer2::start(); // start running the Timer  
 
 }
-
-
 ////**********************************************************************
 void loop()
 {
@@ -81,11 +80,13 @@ void loop()
   // ******************************************************************
   //  When finding the impulse responses of the filters use this as an input
   //  Create a Delta function in time with the first sample a 1 and all others 0
-  xv = (loopTick == 0) ? 1.0 : 0.0; // impulse test input
+  //  xv = (loopTick == 0) ? 1.0 : 0.0; // impulse test input
 
   // ******************************************************************
   //  Use this when the test vector generator is used as an input
-  //  xv = testVector();
+  xv = testVector();
+
+  long fxdInputVal = long(DATA_FXPT * xv + 0.5);
   // ******************************************************************
   //  Read input value in ADC counts  -- Get simulated data from MATLAB
   //readValue = ReadFromMATLAB();
@@ -103,25 +104,25 @@ void loop()
   //fxdInputValue = long(DATA_FXPT * readValue + 0.5);
 
   //  Execute the equalizer
-  //  eqOutput = EqualizerFIR( fxdInputValue, loopTick );
+    eqOutput = Equalizer_FIR(fxdInputVal, loopTick);
   
   //  Execute the noise filter.  
-  // eqOutput = NoiseFilter( eqOutput, loopTick );
+    //eqOutput = FIR_LPF_Noise(fxdInputVal, loopTick);
 
   //  Convert the output of the equalizer by scaling floating point
-  //xv = float(eqOutput) * INV_FXPT;
+    yv = float(eqOutput) * INV_FXPT;
 
   //*******************************************************************
   // Uncomment this when measuring execution times
-  startUsec = micros();
+  //startUsec = micros();
 
   // ******************************************************************
   //  Compute the output of the filter using the cascaded SOS sections
-  yLF = IIR_LOW(xv);  // second order systems cascade (LPF) 
-  yMF = IIR_MID(xv);  // second order systems cascade (BPF)
-  yHF = IIR_HIGH(xv); // second order systems cascade (HPF)
+  //yLF = IIR_LOW(xv);  // second order systems cascade (LPF) 
+  //yMF = IIR_MID(xv);  // second order systems cascade (BPF)
+  //yHF = IIR_HIGH(xv); // second order systems cascade (HPF)
 
-  yLPF_FIR = FIR_Low_Generic(long(DATA_FXPT * xv + 0.5), NUM_SAMPLES);
+  //yLPF_FIR = FIR_LPF_Noise(fxdInputVal, loopTick);
   //  Compute the latest output of the running stats for the output of the filters.
   //  Pass the entire set of output values, the latest stats structure and the reset flag
 
@@ -167,7 +168,7 @@ void loop()
    //printArray[6] = stdMF;
    //printArray[7] = stdHF;
    //printArray[8] = float(alarmCode);
-   printArray[2] = yLPF_FIR;    // Column 3, LPF FIR OUTPUT
+   printArray[2] = yv;    // Column 3, LPF FIR OUTPUT
 
    numValues = 3;  // The number of columns to be sent to the serial monitor (or MATLAB)
 
@@ -196,17 +197,17 @@ int AlarmCheck( float stdLF, float stdMF, float stdHF)
 
   if(stdMF >= stdLF && stdMF >= stdHF)
   {
-    alarCode = 2; // Mid section
+    alarmCode = 2; // Mid section
   }
 
   if(stdHF >= stdLF && stdHF >= stdMF)
   {
-    alarCode = 3; // High section
+    alarmCode = 3; // High section
   }
 
-  else {
+  else
   {
-    alarCode = 0; // Indeterminant state
+    alarmCode = 0; // Indeterminant state
   } 
 
   return alarmCode;
@@ -266,7 +267,7 @@ int FIR_Generic(long inputX, int sampleNumber)
   }
 }
 
-int FIR_Low_Generic(long inputX, int sampleNumber)
+int FIR_LPF_Noise(long inputX, int sampleNumber)
 {   
   // Starting with a generic FIR filter impelementation customize only by
   // changing the length of the filter using MFILT and the values of the
@@ -277,12 +278,11 @@ int FIR_Low_Generic(long inputX, int sampleNumber)
   //  This is to keep the gain of the impulse response at 1.
   
   // LPF FIR Filter Coefficients MFILT = 51, Fc = 75
-	const int HFXPT = 2048, MFILT = 51;
+	const int HFXPT = 2048, MFILT = 51; //2048
 	int h[] = {1, 0, -2, -3, -3, 0, 5, 9, 8, 0, -12, -21, -18, 0,
 	26, 45, 38, 0, -55, -95, -84, 0, 149, 321, 460, 512, 460, 321,
 	149, 0, -84, -95, -55, 0, 38, 45, 26, 0, -18, -21, -12, 0,
 	8, 9, 5, 0, -3, -3, -2, 0, 1};
-
 
   int i;
   const float INV_HFXPT = 1.0/HFXPT;
@@ -622,18 +622,18 @@ float testVector(void)
   // Test each frequency for nominally 60 seconds.
   // Adjust segment intervals for nearest integer cycle count.
     
-  const int NUM_BAND = 6;
+  const int NUM_BAND = 9; // 6
   const float CAL_FBPM = 10.0, CAL_AMP = 2.0; 
   
-  const float FBPM[NUM_BAND] = {70.0, 75.0, 80.0, 85.0, 90.0, 100.0}; 
+  const float FBPM[NUM_BAND] = {12.0, 30.0, 40.0, 50.0, 60.0, 70.0, 75.0, 80.0, 100.0}; 
   // LPF test - 5.0, 10.0, 15.0, 20.0, 30.0, 70.0
   // For the general filter test use those frequencies: 5, 10, 20, 30, 50, 60
-  // FIR LPF test - 70.0, 75.0, 80.0, 85.0, 90.0, 100.0
+  // FIR LPF test - 12, 30, 40, 50.0, 60.0, 70.0, 75.0, 80.0, 100.0
 
-  static float bandAmp[NUM_BAND] = {1000.0, 1000.0, 1000.0, 1000.0, 1000.0, 1000.0};
+  static float bandAmp[NUM_BAND] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
   // 1.0, 1.0, 1.0, 1.0, 1.0, 1.0
 
-  //  Determine the number of samples (around 600 ) that will give you an even number
+  //  Determine the number of samples (around 600) that will give you an even number
   //  of full cycles of the sinewave.  This is done to avoid a large discontinuity 
   //  between bands.  This forces the sinewave in each band to end near a value of zer
   
@@ -649,7 +649,6 @@ float testVector(void)
   
   if ((simTick >= bandTick) && (FBPM[band] > 0.0))
   {
-
     //  The simTick got to the end of the band cycle.  Go to the next frequency
     simTick = 0;
     band++;
