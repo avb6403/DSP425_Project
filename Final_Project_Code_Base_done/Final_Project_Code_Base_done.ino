@@ -43,7 +43,7 @@ bool isToneEn = false;
 unsigned long startUsec, endUsec, execUsec;
 
 int alarmCode = 0;
-float threshold = 0.0;
+float threshold = 0.1;
 
 //  Define a structure to hold statistics values for each filter band
 struct stats_t
