@@ -1,0 +1,32 @@
+void setAlarm(int aCode, boolean isToneEn)
+{  
+
+  switch (alarmCode) // Non-operational
+  {  
+    case 4:   
+    toneT1.play(200);
+    break;
+    
+    case 1:   
+    toneT1.play(400);
+    break;
+    
+    case 2:
+
+   toneT1.play(1000);
+    break;
+
+    break;
+     
+    case 3:   
+    toneT1.stop();
+    break;
+    
+    case 0:   
+    toneT1.stop();
+    break;
+
+  } 
+
+    
+} // setBreathRateAlarm()
