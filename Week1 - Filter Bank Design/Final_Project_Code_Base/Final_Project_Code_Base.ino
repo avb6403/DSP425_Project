@@ -1,19 +1,16 @@
-// OPEN A NEW SKETCH WINDOW IN ARDUINO
-// CLICK IN THIS BOX, CTL-A, CTL-C (Copy code from text box.)
-// CLICK IN SKETCH, CTL-A, CTL-V (Paste code into sketch.)
+#include <Tone2.h>
 
 // Breathing Rate Detection System -- Final Integration
 //
 // Pieced together from code created by: Clark Hochgraf and David Orlicki Oct 18, 2018
 // Modified by: Mark Thompson April 2020 to integrate MATLAB read and Write
 //              and integrate the system
-
 #include <MsTimer2.h>
 #include <SPI.h>
-
+#include <Tone2.h>
 
 const int TSAMP_MSEC = 100;
-const int NUM_SAMPLES = 3600;  //512 or 3600;
+const int NUM_SAMPLES = 10000;  //512 or 3600;
 const int NUM_SUBSAMPLES = 160;
 const int DAC0 = 3, DAC1 = 4, DAC2 = 5, LM61 = A0, VDITH = A1;
 const int V_REF = 5.0;
@@ -33,13 +30,13 @@ int numValues = 0;
 
 
 int loopTick = 0;
-bool statsReset;
+bool statsResetLF, statsResetMF, statsResetHF;
 bool isToneEn = false;
 
 unsigned long startUsec, endUsec, execUsec;
 
 int alarmCode = 0;
-float threshold = 0.05;
+float threshold = 0.15;
 
 //  Define a structure to hold statistics values for each filter band
 struct stats_t {
@@ -47,6 +44,13 @@ struct stats_t {
   float mean, var, stdev;
 } statsLF, statsMF, statsHF;
 
+
+Tone toneT2;
+Tone toneT1;
+
+
+//unsigned long previousTime = 0;
+//unsigned long currentTime = 0; 
 //**********************************************************************
 void setup() {
 
@@ -56,8 +60,10 @@ void setup() {
 
   //Handshake with MATLAB
   Serial.println(F("%Arduino Ready"));
-  while (Serial.read() != 'g')
-    ;  // spin
+  while (Serial.read() != 'g');
+
+  toneT2.begin(13);
+  toneT1.begin(SPKR);
 
   MsTimer2::set(TSAMP_MSEC, ISR_Sample);  // Set sample msec, ISR name
   MsTimer2::start();                      // start running the Timer
@@ -124,15 +130,16 @@ void loop() {
   //  Pass the entire set of output values, the latest stats structure and the reset flag
 
   /*Statistics*/
-  statsReset = (statsLF.tick % 100 == 0);
-
-  getStats(yLF, statsLF, statsReset);
+  statsResetLF = (statsLF.tick % 50 == 0);
+  getStats(yLF, statsLF, statsResetLF);
   stdLF = statsLF.stdev;
 
-  getStats(yMF, statsMF, statsReset);
+  statsResetMF = (statsMF.tick % 50 == 0);
+  getStats(yMF, statsMF, statsResetMF);
   stdMF = statsMF.stdev;
 
-  getStats(yHF, statsHF, statsReset);
+  statsResetHF = (statsHF.tick % 40 == 0);
+  getStats(yHF, statsHF, statsResetHF);
   stdHF = statsHF.stdev;
   //*******************************************************************
   // Uncomment this when measuring execution times
@@ -143,8 +150,7 @@ void loop() {
   alarmCode = AlarmCheck(stdLF, stdMF, stdHF);
 
   //  Call the alarm function to turn on or off the tone
-  //setAlarm(alarmCode, isToneEn );
-
+  setAlarm(alarmCode, isToneEn);
 
   // To print data to the serial port, use the WriteToSerial function.
   //
@@ -179,7 +185,7 @@ void loop() {
 
 //******************************************************************
 int AlarmCheck(float stdLF, float stdMF, float stdHF) {
-  if (stdLF > threshold || stdMF > threshold || stdHF > threshold) 
+  if (stdLF > 0.05 || stdMF > 0.05 || stdHF > 0.075) 
   {
     if (stdLF > stdMF && stdLF > stdHF) 
     {
@@ -538,10 +544,10 @@ float IIR_MID(float xv) {
 float IIR_HIGH(float xv) {
   //  ***  Copy variable declarations from MATLAB generator to here  ****
   //Filter specific variable declarations
-  const int numStages = 4;
-  static float G[numStages];
-  static float b[numStages][3];
-  static float a[numStages][3];
+const int numStages = 5;
+static float G[numStages];
+static float b[numStages][3];
+static float a[numStages][3];
 
   //  *** Stop copying MATLAB variable declarations here
 
@@ -554,35 +560,23 @@ float IIR_HIGH(float xv) {
   unsigned long startTime;
 
   //  ***  Copy variable initialization code from MATLAB generator to here  ****
-  //CHEBY high, order 8, R = 0.5, 40 BPM
-  G[0] = 0.6899088;
-  b[0][0] = 1.0000000;
-  b[0][1] = -2.0004653;
-  b[0][2] = 1.0001304;
-  a[0][0] = 1.0000000;
-  a[0][1] = -0.3786331;
-  a[0][2] = 0.1766708;
-  G[1] = 0.6899088;
-  b[1][0] = 1.0000000;
-  b[1][1] = -2.0258801;
-  b[1][2] = 1.0262211;
-  a[1][0] = 1.0000000;
-  a[1][1] = -1.2983826;
-  a[1][2] = 0.6726531;
-  G[2] = 0.6899088;
-  b[2][0] = 1.0000000;
-  b[2][1] = -1.9741196;
-  b[2][2] = 0.9744486;
-  a[2][0] = 1.0000000;
-  a[2][1] = -1.6588484;
-  a[2][2] = 0.8741666;
-  G[3] = 0.6899088;
-  b[3][0] = 1.0000000;
-  b[3][1] = -1.9995350;
-  b[3][2] = 0.9998699;
-  a[3][0] = 1.0000000;
-  a[3][1] = -1.7975113;
-  a[3][2] = 0.9655216;
+  //CHEBY high, order 9, R = 0.5, 40 BPM
+
+G[0] = 0.7126996;
+b[0][0] = 1.0000000; b[0][1] = -1.0331309; b[0][2]= 0.0000000;
+a[0][0] = 1.0000000; a[0][1] =  0.0344345; a[0][2] =  0.0000000;
+G[1] = 0.7126996;
+b[1][0] = 1.0000000; b[1][1] = -2.0499156; b[1][2]= 1.0510023;
+a[1][0] = 1.0000000; a[1][1] =  -0.7918073; a[1][2] =  0.4354452;
+G[2] = 0.7126996;
+b[2][0] = 1.0000000; b[2][1] = -1.9401202; b[2][2]= 0.9411299;
+a[2][0] = 1.0000000; a[2][1] =  -1.4488232; a[2][2] =  0.7702008;
+G[3] = 0.7126996;
+b[3][0] = 1.0000000; b[3][1] = -2.0099436; b[3][2]= 1.0110030;
+a[3][0] = 1.0000000; a[3][1] =  -1.6976610; a[3][2] =  0.9037949;
+G[4] = 0.7126996;
+b[4][0] = 1.0000000; b[4][1] = -1.9668898; b[4][2]= 0.9679189;
+a[4][0] = 1.0000000; a[4][1] =  -1.8035487; a[4][2] =  0.9725991;
 
   //  **** Stop copying MATLAB code here  ****
 
@@ -650,9 +644,99 @@ float analogReadDitherAve(void) {
 }
 
 //*********************************************************************
-void setAlarm(int aCode, boolean isToneEn) {
+void setAlarm(int aCode, bool isToneEn) 
+{
+  unsigned long currentTime;
+  const unsigned long interval = 1000;
+  static unsigned long previousTime = 0;
+  static bool NeedNewTime = true;
 
-}  // setBreathRateAlarm()
+  switch(aCode)
+  {
+    case 1:
+      toneT1.play(400);
+      break;
+
+    case 2:
+    if(NeedNewTime)
+    {
+      previousTime = millis();
+      NeedNewTime = false;
+    }
+
+    currentTime = millis();
+    if (currentTime - previousTime >= interval)
+    {
+      NeedNewTime = true;
+      if(toneT1.isPlaying())
+      {
+        toneT1.stop();
+      }
+      else
+      {
+        toneT1.play(1000);
+      }
+    }
+    break;
+
+
+
+      // if (currentTime - previousTime >= interval) 
+      // {
+      //   toneT1.play(1000, 1000);
+      //   previousTime = millis();
+      // } 
+      // else 
+      // {
+        
+      //   toneT1.stop();
+      // }
+      // break;
+
+    case 3:
+      toneT1.stop();
+      break;
+    
+    case 4:
+      toneT1.play(200);
+      break;
+
+    default:
+      toneT1.stop();
+      break;
+  }
+  
+  
+  
+  
+  // if (aCode == 1)
+  // {
+  //   toneT1.play(400);
+  // }
+
+  // else if (aCode == 2)
+  // {
+  //  if (currentTime - previousTime >= interval) 
+  //   {
+  //     toneT1.play(1000);
+  //     previousTime = millis();
+  //   } 
+  //   else 
+  //   {
+  //     toneT1.stop();
+  //   }
+  // }
+
+  // else if (aCode == 4)
+  // {
+  //  toneT1.play(200);
+  // }
+
+  // else
+  // {
+  //     toneT1.stop();
+  // }
+}
 
 //*************************************************************
 float testVector(void) {
@@ -715,7 +799,7 @@ void configureArduino(void) {
   digitalWrite(SPKR, LOW);
 
 
-  analogReference(DEFAULT);  // DEFAULT, INTERNAL
+  analogReference(INTERNAL);  // DEFAULT, INTERNAL
   analogRead(LM61);           // read and discard to prime ADC registers
   Serial.begin(115200);       // 11 char/msec
 }
